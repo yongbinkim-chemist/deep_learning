@@ -3,34 +3,38 @@ import torch
 from torch import nn
 
 class VGGNet(nn.Module):
+  # VGGNet Configurations
   # cfgs = { "A": [64, "M", 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M"],
-  #         "B": [64, 64, "M", 128, 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M"],
-  #         "D": [64, 64, "M", 128, 128, "M", 256, 256, 256, "M", 512, 512, 512, "M", 512, 512, 512, "M"],
-  #         "E": [64, 64, "M", 128, 128, "M", 256, 256, 256, 256, "M", 512, 512, 512, 512, "M", 512, 512, 512, 512, "M"] }
+  #          "B": [64, 64, "M", 128, 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M"],
+  #          "D": [64, 64, "M", 128, 128, "M", 256, 256, 256, "M", 512, 512, 512, "M", 512, 512, 512, "M"],
+  #          "E": [64, 64, "M", 128, 128, "M", 256, 256, 256, 256, "M", 512, 512, 512, 512, "M", 512, 512, 512, 512, "M"] }
 
   def __init__(self,
+               hidden_units: int,
                num_classes: int,
                drop_p: float = 0.5,
                batch_norm: bool = False,
                init_weights: bool = True):
     
     super().__init__()
-    self.cfg = [64, "M", 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M"]
+    self.cfg = [64, "M", 32, "M", 16, "M"]
 
     self.features = self.create_conv_layers(batch_norm=batch_norm)
-    self.avgpool = nn.AdaptiveAvgPool2d(output_size=(7, 7))
+    # self.avgpool = nn.AdaptiveAvgPool2d(output_size=(7, 7))
+    self.avgpool = nn.AdaptiveAvgPool2d(output_size=(4, 4))
     self.classifier = nn.Sequential(nn.Flatten(),
-                                    nn.Linear(in_features=512 * 7 * 7,
-                                              out_features=4096,
+                                    # nn.Linear(in_features=512 * 7 * 7,
+                                    nn.Linear(in_features=16 * 4 * 4,
+                                              out_features=hidden_units,
                                               bias=True),
                                     nn.ReLU(inplace=True), # makes nn.ReLU() overwirte the input tensor directly instead of creating a new one
                                     nn.Dropout(p=drop_p),
-                                    nn.Linear(in_features=4096,
-                                              out_features=4096,
+                                    nn.Linear(in_features=hidden_units,
+                                              out_features=hidden_units,
                                               bias=True),
                                     nn.ReLU(inplace=True),
                                     nn.Dropout(p=drop_p),
-                                    nn.Linear(in_features=4096,
+                                    nn.Linear(in_features=hidden_units,
                                               out_features=num_classes,
                                               bias=True))
 
@@ -84,7 +88,8 @@ class VGGNet(nn.Module):
 if __name__ == "__main__":
   device = "cuda" if torch.cuda.is_available() else "cpu"
 
-  model = VGGNet(num_classes=3,
+  model = VGGNet(hidden_units=10,
+                 num_classes=3,
                  drop_p=0.5,
                  batch_norm=True,
                  init_weights=True).to(device)
