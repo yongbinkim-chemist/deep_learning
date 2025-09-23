@@ -1,78 +1,36 @@
-from typing import List
+from typing import List, Tuple
+import matplotlib.pyplot as plt
+from PIL import Image
 import torch
 import torchvision
-import argparse
-import models
+from torchvision import transforms
 
-def load_model(filepath: str,
-               hidden_units: int,
-               num_classes: int):
-  
-  model = models.VGGNet(hidden_units=10,
-                        num_classes=3,
-                        drop_p=0.5,
-                        batch_norm=True,
-                        init_weights=True)
-  
-  model.load_state_dict(torch.load(filepath))
-  return model
-
-def predict_on_image(model_path: str,
+def predict_and_plot(model: torch.nn.Module,
+                     class_names: List[str],
                      image_path: str,
-                     hidden_units: int,
-                     class_names: List,
-                     device: str):
-  
-  model = load_model(filepath=model_path,
-                     hidden_units=hidden_units,
-                     num_classes=len(class_names))
-  
-  image = torchvision.io.read_image(str(image_path)).type(torch.float32)
+                     image_size: Tuple[int, int],
+                     transform: torchvision.transforms = None,
+                     device: torch.device = "cpu"):
 
-  image = image / 255.
-  transform = torchvision.transforms.Resize((64, 64))
-  image = transform(image)
+  img = Image.open(image_path)  
+  if transform:
+    transformed_img = transform(img)
+  else:
+    transform = transforms.Compose([transforms.Resize(image_size),
+                                    transforms.ToTensor()])
+    transformed_img = transform(img)
 
+  ### Make prediction ###
+  model.to(device)
   model.eval()
   with torch.inference_mode():
-    image = image.to(device)
-    image = torch.unsqueeze(image, dim=0)
-    
-    pred_logits = model(image)
-    pred_probs = torch.softmax(pred_logits, dim=1)
-    pred_label = torch.argmax(pred_probs, dim=1)
+    pred_logit = model(transformed_img.unsqueeze(dim=0).to(device))
+    pred_prob = torch.softmax(pred_logit, dim=1)
+    pred_label = torch.argmax(pred_prob, dim=1)
     pred_class = class_names[pred_label]
-
-  print(f"[INFO] Pred class: {pred_class}, Pred prob: {pred_probs.max():.3f}")
-
-if __name__ == "__main__":
-
-  parser = argparse.ArgumentParser()
-
-  parser.add_argument("--image",
-                      help="target image filepath to predict on")
-
-  parser.add_argument("--model_path",
-                      default="models/computer_vision_modular.pth",
-                      type=str,
-                      help="target model to use for prediction filepath")
-
-  parser.add_argument("--hidden_units",
-                      default=10,
-                      type=int,
-                      help="number of hidden units in hidden layers")
-
-  args = parser.parse_args()
-
-  class_names = ["bibimbap", "hamburger", "sashimi"]
-
-  device = "cuda" if torch.cuda.is_available() else "cpu"
-
-  IMG_PATH = args.image
-  print(f"[INFO] Predicting on {IMG_PATH}")
-
-  predict_on_image(model_path=args.model_path,
-                   image_path=args.image,
-                   hidden_units=args.hidden_units,
-                   class_names=class_names,
-                   device=device)
+  
+    ### Plot image ###
+    plt.figure()
+    plt.imshow(img)
+    plt.title(f"Pred: {pred_class} | Prob: {pred_prob.max():.3f}")
+    plt.axis(False)
